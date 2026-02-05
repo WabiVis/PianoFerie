@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="holiday.png">
+
+<title>Planner Ferie 2026</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+/* ================= BASE ================= */
+body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
+               "Segoe UI",Roboto,system-ui,sans-serif;
+    background:#eef1f5;
+    margin:0;
+    padding:20px;
+    color:#111827;
+}
+
+/* ================= LOGO HEADER ================= */
+.logo-box{
+    width:100%;
+    margin-bottom:16px;
+    padding:20px 0;
+    text-align:center;
+	 align-items:center;
+    background:linear-gradient(180deg, #3A404C, #2D343F);
+    border-radius:12px;
+}
+.logo-img{
+    height:70px;
+    width:auto;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));
+}
+@media(max-width:768px){
+    .logo-img{height:48px}
+}
+
+/* ================= TITOLI ================= */
+h1{
+    text-align:center;
+    color:#1f365e;
+    margin:10px 0 14px;
+}
+
+/* ================= HEADER NAV ================= */
+.calendar-header{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:14px;
+}
+.nav-btn{
+    padding:6px 12px;
+    border-radius:999px;
+    border:1px solid #c7cdd8;
+    background:#fff;
+    cursor:pointer;
+}
+.month-label{font-weight:600}
+
+/* ================= VIEW ================= */
+.view-mode-bar{
+    display:flex;
+    justify-content:center;
+    gap:6px;
+    margin:14px 0 24px;
+    flex-wrap:wrap;
+}
+.view-btn{
+    padding:6px 14px;
+    border-radius:999px;
+    border:1px solid #cbd5f5;
+    background:#fff;
+    cursor:pointer;
+}
+.view-btn.active{
+    background:#1d4ed8;
+    color:#fff;
+}
+
+/* ================= PAGE LAYOUT ================= */
+.page-wrapper{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:28px;
+}
+
+/* ================= DASHBOARD ================= */
+.dashboard-row{
+    width:70%;
+    display:flex;
+    gap:4%;
+}
+.dashboard-box{
+    width:30%;
+    background:#fff;
+    padding:14px;
+    border-radius:14px;
+    box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+.chart-box{
+    width:70%;
+    background:#fff;
+    padding:14px;
+    border-radius:14px;
+    box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+.chart-box canvas{height:420px!important}
+
+/* ================= TOTALI TABLE ================= */
+#dashboardTable{
+    width:100%;
+    border-collapse:collapse;
+}
+#dashboardTable th,#dashboardTable td{
+    border:1px solid #d5dbe7;
+    padding:8px 6px;
+    font-size:13.5px;
+}
+#dashboardTable th{
+    font-weight:600;
+}
+#dashboardTable td:first-child{
+    text-align:left;
+    font-weight:700;
+}
+#dashboardTable tbody tr:hover{
+    background:#f3f4f6;
+}
+
+/* ================= PLANNER ================= */
+.planner-container{width:70%}
+#plannersContainer{
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+}
+
+/* ✅ MODIFICA: abilito scroll orizzontale in caso di schermo stretto */
+.planner-box{
+    border-radius:14px;
+    overflow-x:auto;     /* <<< richiesto */
+    overflow-y:hidden;
+    background:#fff;
+    box-shadow:0 4px 14px rgba(0,0,0,.08);
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ MODIFICA: la tabella può “allargarsi” oltre il contenitore quando serve */
+table.planner{
+    width:max-content;   /* <<< permette overflow orizzontale */
+    min-width:100%;      /* <<< su schermi larghi resta piena */
+    border-collapse:collapse;
+}
+
+th,td{
+    border:1px solid #d5dbe7;
+    padding:6px;
+    height:38px;
+    text-align:center;
+    font-size:14px;
+}
+
+/* colonna membro sticky */
+th.member-name,td.member-name{
+    position:sticky;
+    left:0;
+    z-index:5;
+    background:#f2f6fb;
+    font-weight:700;
+    text-align:left;
+    padding-left:10px;
+    white-space:nowrap;
+}
+
+.weekday-row th{
+    background:#e0e7ff;
+    font-weight:600;
+    font-size:13px;
+}
+.holiday-col{
+    background:#fde6b3;
+    cursor:not-allowed;
+}
+td.editable{cursor:pointer}
+td.editable:hover{background:#eef4ff}
+td.full-day{background:#ffd6d6;color:#b30000;font-weight:600}
+td.morning-partial{background:#d6ecff;color:#0b5ed7;font-weight:600}
+td.afternoon-partial{background:#e6dbff;color:#4b2dbf;font-weight:600}
+
+/* ================= MODALE ================= */
+.modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.35);
+    backdrop-filter:blur(6px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+}
+.modal-panel{
+    background:#fff;
+    border-radius:18px;
+    padding:20px 22px;
+    width:420px;
+}
+.modal-title{font-weight:700;font-size:18px}
+.modal-subtitle{font-size:13px;color:#6b7280;margin-bottom:12px}
+.btn-full-day{
+    width:100%;
+    padding:10px;
+    border-radius:999px;
+    border:1px solid #fca5a5;
+    background:#fee2e2;
+    font-weight:600;
+    cursor:pointer;
+    margin-bottom:14px;
+}
+.modal-section{margin-bottom:12px}
+.modal-section-title{
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+.modal-hours{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+}
+.hour-btn{
+    padding:6px 12px;
+    border-radius:999px;
+    border:1px solid #d1d5db;
+    background:#fff;
+    cursor:pointer;
+    font-size:13px;
+}
+.modal-footer{
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+}
+.remove-link{color:#dc2626;font-size:13px;cursor:pointer}
+.cancel-btn{
+    padding:6px 14px;
+    border-radius:999px;
+    border:none;
+    background:#e5e7eb;
+    cursor:pointer;
+}
+
+/* ================= RESPONSIVE ================= */
+@media(max-width:1200px){
+    .planner-container,.dashboard-row{width:100%}
+}
+@media(max-width:900px){
+    .dashboard-row{
+        flex-direction:column;
+        gap:20px;
+    }
+    .dashboard-box,.chart-box{width:100%}
+}
+@media(max-width:768px){
+    th,td{font-size:12px;height:32px}
+    .chart-box canvas{height:280px!important}
+}
+</style>
+</head>
+
+<body>
+
+<header class="logo-box">
+    <img src="logo_dataexpert.png" alt="Dataexpert" class="logo-img">
+</header>
+
+<h1>Planner Annuale 2026</h1>
+
+<div class="calendar-header">
+    <button class="nav-btn" onclick="prevMonth()">←</button>
+    <div class="month-label" id="monthLabel"></div>
+    <button class="nav-btn" onclick="nextMonth()">→</button>
+</div>
+
+<div class="view-mode-bar">
+    <button class="view-btn active" onclick="setView('month',this)">Mese</button>
+    <button class="view-btn" onclick="setView('quarter',this)">Trimestre</button>
+    <button class="view-btn" onclick="setView('half',this)">Semestre</button>
+    <button class="view-btn" onclick="setView('year',this)">Anno</button>
+    <button class="view-btn" onclick="exportToExcel()">⬇︎ Excel</button>
+</div>
+
+<div class="page-wrapper" id="pageWrapper">
+
+    <!-- dashboard -->
+    <div class="dashboard-row" id="dashboardRow">
+        <div class="dashboard-box">
+            <h3>Totali</h3>
+            <table id="dashboardTable">
+                <thead>
+                    <tr>
+                        <th>Utente</th>
+                        <th>Ore</th>
+                        <th>Giornate</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="chart-box">
+            <h3 style="text-align:center">Ore per Mese</h3>
+            <canvas id="chart"></canvas>
+        </div>
+    </div>
+
+    <!-- planner -->
+    <div class="planner-container">
+        <div id="plannersContainer"></div>
+    </div>
+
+</div>
+
+<!-- MODALE -->
+<div id="modal" class="modal-overlay" onclick="closeModal()">
+  <div class="modal-panel" onclick="event.stopPropagation()">
+    <div class="modal-title">Imposta ferie</div>
+    <div class="modal-subtitle" id="modalDate"></div>
+
+    <button class="btn-full-day" onclick="applyValue('8')">Giornata intera · 8 ore</button>
+
+    <div class="modal-section">
+        <div class="modal-section-title">Mattina (08:00 – 13:00)</div>
+        <div class="modal-hours">
+            <button class="hour-btn" onclick="applyValue('1 M')">1 ora</button>
+            <button class="hour-btn" onclick="applyValue('2 M')">2 ore</button>
+            <button class="hour-btn" onclick="applyValue('3 M')">3 ore</button>
+            <button class="hour-btn" onclick="applyValue('4 M')">4 ore</button>
+            <button class="hour-btn" onclick="applyValue('5 M')">5 ore</button>
+        </div>
+    </div>
+
+    <div class="modal-section">
+        <div class="modal-section-title">Pomeriggio (14:00 – 19:00)</div>
+        <div class="modal-hours">
+            <button class="hour-btn" onclick="applyValue('1 P')">1 ora</button>
+            <button class="hour-btn" onclick="applyValue('2 P')">2 ore</button>
+            <button class="hour-btn" onclick="applyValue('3 P')">3 ore</button>
+            <button class="hour-btn" onclick="applyValue('4 P')">4 ore</button>
+            <button class="hour-btn" onclick="applyValue('5 P')">5 ore</button>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <div class="remove-link" onclick="applyValue('')">Rimuovi valore</div>
+        <button class="cancel-btn" onclick="closeModal()">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= JS ================= */
+const users=["Damiano","Gianluca","Gregorio","Leonardo","Samuela","Simone"];
+const months=[
+ {n:"Gennaio",s:"Gen",d:31,h:[1,6]},
+ {n:"Febbraio",s:"Feb",d:28,h:[]},
+ {n:"Marzo",s:"Mar",d:31,h:[]},
+ {n:"Aprile",s:"Apr",d:30,h:[25]},
+ {n:"Maggio",s:"Mag",d:31,h:[1]},
+ {n:"Giugno",s:"Giu",d:30,h:[2]},
+ {n:"Luglio",s:"Lug",d:31,h:[]},
+ {n:"Agosto",s:"Ago",d:31,h:[15]},
+ {n:"Settembre",s:"Set",d:30,h:[]},
+ {n:"Ottobre",s:"Ott",d:31,h:[]},
+ {n:"Novembre",s:"Nov",d:30,h:[1]},
+ {n:"Dicembre",s:"Dic",d:31,h:[8,25,26]}
+];
+
+let currentMonth=0;
+let viewMode="month";
+let activeCell=null;
+let chart=null;
+
+const parseHours=v=>!v?0:(v==="8"?8:parseInt(v));
+
+function setView(v,btn){
+    viewMode=v;
+    document.querySelectorAll(".view-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+
+    const wrapper=document.getElementById("pageWrapper");
+    const dash=document.getElementById("dashboardRow");
+    const planner=document.querySelector(".planner-container");
+
+    if(v==="half"||v==="year"){
+        wrapper.insertBefore(dash,planner);
+    }else{
+        wrapper.appendChild(dash);
+    }
+    render();
+}
+
+function render(){
+    renderPlanner();
+    renderDashboard();
+    renderChart();
+}
+
+function renderPlanner(){
+    const cont=document.getElementById("plannersContainer");
+    cont.innerHTML="";
+
+    document.getElementById("monthLabel").textContent=
+        months[currentMonth].n+" 2026";
+
+    let idxs=[currentMonth];
+    if(viewMode==="quarter"){
+        const s=Math.floor(currentMonth/3)*3;
+        idxs=[s,s+1,s+2];
+    }
+    if(viewMode==="half"){
+        idxs=currentMonth<6?[0,1,2,3,4,5]:[6,7,8,9,10,11];
+    }
+    if(viewMode==="year"){
+        idxs=[...Array(12).keys()];
+    }
+
+    idxs.forEach(mi=>{
+        const m=months[mi];
+        let html=`<div class="planner-box"><table class="planner"><thead>
+        <tr class="weekday-row">
+            <th class="member-name" rowspan="2">Membro</th>`;
+
+        for(let d=1;d<=m.d;d++){
+            html+=`<th>${["dom","lun","mar","mer","gio","ven","sab"][new Date(2026,mi,d).getDay()]}</th>`;
+        }
+
+        html+=`</tr><tr>`;
+        for(let d=1;d<=m.d;d++){
+            const wd=new Date(2026,mi,d).getDay();
+            html+=`<th class="${wd===0||wd===6||m.h.includes(d)?"holiday-col":""}">${d}</th>`;
+        }
+        html+=`</tr></thead><tbody>`;
+
+        users.forEach(u=>{
+            html+=`<tr><td class="member-name">${u}</td>`;
+            for(let d=1;d<=m.d;d++){
+                const wd=new Date(2026,mi,d).getDay();
+                const key=`${u}-${mi}-${d}`;
+                const v=localStorage.getItem(key)||"";
+                if(wd===0||wd===6||m.h.includes(d)){
+                    html+=`<td class="holiday-col"></td>`;
+                }else{
+                    let cls="editable";
+                    if(v==="8")cls+=" full-day";
+                    if(v.endsWith("M"))cls+=" morning-partial";
+                    if(v.endsWith("P"))cls+=" afternoon-partial";
+                    html+=`<td class="${cls}" onclick="openModal(this,'${key}',${d},${mi})">${v}</td>`;
+                }
+            }
+            html+=`</tr>`;
+        });
+
+        html+=`</tbody></table></div>`;
+        cont.insertAdjacentHTML("beforeend",html);
+    });
+}
+
+function renderDashboard(){
+    const tb=document.querySelector("#dashboardTable tbody");
+    tb.innerHTML="";
+    users.forEach(u=>{
+        let ore=0;
+        months.forEach((m,mi)=>{
+            for(let d=1;d<=m.d;d++){
+                ore+=parseHours(localStorage.getItem(`${u}-${mi}-${d}`));
+            }
+        });
+        tb.innerHTML+=`<tr>
+            <td>${u}</td>
+            <td>${ore}</td>
+            <td>${(ore/8).toFixed(2)}</td>
+        </tr>`;
+    });
+}
+
+function renderChart(){
+    const ctx=document.getElementById("chart");
+    if(chart)chart.destroy();
+    chart=new Chart(ctx,{
+        type:"line",
+        data:{
+            labels:months.map(m=>m.s),
+            datasets:users.map(u=>({
+                label:u,
+                data:months.map((m,mi)=>{
+                    let s=0;
+                    for(let d=1;d<=m.d;d++){
+                        s+=parseHours(localStorage.getItem(`${u}-${mi}-${d}`));
+                    }
+                    return s;
+                }),
+                borderWidth:3,
+                tension:.35
+            }))
+        },
+        options:{
+            responsive:true,
+            scales:{y:{beginAtZero:true}}
+        }
+    });
+}
+
+function openModal(td,key,day,month){
+    activeCell={td,key};
+    document.getElementById("modalDate").textContent=
+        `${day} ${months[month].n} 2026`;
+    document.getElementById("modal").style.display="flex";
+}
+function closeModal(){
+    document.getElementById("modal").style.display="none";
+    activeCell=null;
+}
+function applyValue(v){
+    if(!activeCell)return;
+    activeCell.td.textContent=v;
+    if(v) localStorage.setItem(activeCell.key,v);
+    else localStorage.removeItem(activeCell.key);
+    closeModal();
+    render();
+}
+
+function nextMonth(){
+    currentMonth=(currentMonth+1)%12;
+    render();
+}
+function prevMonth(){
+    currentMonth=(currentMonth+11)%12;
+    render();
+}
+
+function exportToExcel(){
+    const wb=XLSX.utils.book_new();
+    months.forEach((m,mi)=>{
+        const aoa=[["Membro",...Array.from({length:m.d},(_,i)=>i+1)]];
+        users.forEach(u=>{
+            const row=[u];
+            for(let d=1;d<=m.d;d++){
+                row.push(localStorage.getItem(`${u}-${mi}-${d}`)||"");
+            }
+            aoa.push(row);
+        });
+        XLSX.utils.book_append_sheet(
+            wb,
+            XLSX.utils.aoa_to_sheet(aoa),
+            m.n
+        );
+    });
+    XLSX.writeFile(wb,"Planner_Ferie_2026.xlsx");
+}
+
+render();
+</script>
+
+<!--
+Holiday icons created by Icon home - Flaticon
+https://www.flaticon.com/free-icons/holiday
+-->
+
+</body>
+</html>
