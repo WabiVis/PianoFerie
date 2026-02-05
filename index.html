@@ -8,30 +8,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs } 
-    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-  // 🔁 INCOLLA QUI IL TUO firebaseConfig DALLA CONSOLE
-  const firebaseConfig = {
-    apiKey: "AIzaSyBupKv4YgQNogpZHgOKkpeuxESev1fP5Ew",
-    authDomain: "planner-ferie.firebaseapp.com",
-    projectId: "planner-ferie",
-	storageBucket: "planner-ferie.firebasestorage.app",
-	messagingSenderId: "511639574108",
-	appId: "1:511639574108:web:2def4d68d7b12ea09a7899",
-	measurementId: "G-VBTS0DWXWM"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  // esponiamo db al resto dello script
-  window.db = db;
-  
-  
-</script>
 
 <style>
 /* ================= BASE ================= */
@@ -389,36 +365,6 @@ td.afternoon-partial{background:#e6dbff;color:#4b2dbf;font-weight:600}
 
 <script>
 /* ================= JS ================= */
-
-async function saveValue(user, key, value) {
-  if (!value) return;
-  await setDoc(
-    doc(window.db, "planner", YEAR, user, key),
-    { value }
-  );
-}
-
-async function deleteValue(user, key) {
-  await setDoc(
-    doc(window.db, "planner", YEAR, user, key),
-    {},
-    { merge: false }
-  );
-}
-
-async function preloadData() {
-  cache = {};
-  for (const u of users) {
-    const col = collection(window.db, "planner", YEAR, u);
-    const snap = await getDocs(col);
-    snap.forEach(d => {
-      cache[`${u}-${d.id}`] = d.data().value;
-    });
-  }
-}
-
-
-
 const users=["Damiano","Gianluca","Gregorio","Leonardo","Samuela","Simone"];
 const months=[
  {n:"Gennaio",s:"Gen",d:31,h:[1,6]},
@@ -506,7 +452,7 @@ function renderPlanner(){
             for(let d=1;d<=m.d;d++){
                 const wd=new Date(2026,mi,d).getDay();
                 const key=`${u}-${mi}-${d}`;
-                const v = cache[`${u}-${key}`] || "";
+                const v=localStorage.getItem(key)||"";
                 if(wd===0||wd===6||m.h.includes(d)){
                     html+=`<td class="holiday-col"></td>`;
                 }else{
@@ -583,11 +529,8 @@ function closeModal(){
 function applyValue(v){
     if(!activeCell)return;
     activeCell.td.textContent=v;
-	const user = activeCell.key.split("-")[0];
-	if (v) await saveValue(user, activeCell.key, v);
-	else await deleteValue(user, activeCell.key);
-
-	await preloadData();
+    if(v) localStorage.setItem(activeCell.key,v);
+    else localStorage.removeItem(activeCell.key);
     closeModal();
     render();
 }
@@ -621,10 +564,7 @@ function exportToExcel(){
     XLSX.writeFile(wb,"Planner_Ferie_2026.xlsx");
 }
 
-(async () => {
-  await preloadData();
-  render();
-})();
+render();
 </script>
 
 <!--
