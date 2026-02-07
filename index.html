@@ -9,6 +9,42 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
+<!-- Firebase SDK v9+ (modular) -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+  import { getDatabase, ref, set, get, onValue, remove } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBupKv4YgQNogpZHgOKkpeuxESev1fP5Ew",
+    authDomain: "planner-ferie.firebaseapp.com",
+    projectId: "planner-ferie",
+    storageBucket: "planner-ferie.firebasestorage.app",
+    messagingSenderId: "511639574108",
+    appId: "1:511639574108:web:2def4d68d7b12ea09a7899",
+    measurementId: "G-VBTS0DWXWM",
+    databaseURL: "https://planner-ferie-default-rtdb.europe-west1.firebasedatabase.app/"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const database = getDatabase(app);
+
+  // Esponiamo le funzioni Firebase globalmente per usarle nel codice esistente
+  window.firebaseDB = {
+    ref: (path) => ref(database, path),
+    set: set,
+    get: get,
+    onValue: onValue,
+    remove: remove
+  };
+
+  // Avvia l'app quando Firebase è pronto
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.initApp) {
+      window.initApp();
+    }
+  });
+</script>
+
 <style>
 /* ================= BASE ================= */
 body{
@@ -151,7 +187,7 @@ h1{
     -webkit-overflow-scrolling: touch;
 }
 
-/* ✅ MODIFICA: la tabella può “allargarsi” oltre il contenitore quando serve */
+/* ✅ MODIFICA: la tabella può "allargarsi" oltre il contenitore quando serve */
 table.planner{
     width:max-content;   /* <<< permette overflow orizzontale */
     min-width:100%;      /* <<< su schermi larghi resta piena */
@@ -255,6 +291,29 @@ td.afternoon-partial{background:#e6dbff;color:#4b2dbf;font-weight:600}
     cursor:pointer;
 }
 
+/* ================= LOADING INDICATOR ================= */
+.loading-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(255,255,255,0.9);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+}
+.loading-spinner{
+    width:50px;
+    height:50px;
+    border:4px solid #e5e7eb;
+    border-top:4px solid #1d4ed8;
+    border-radius:50%;
+    animation:spin 1s linear infinite;
+}
+@keyframes spin{
+    0%{transform:rotate(0deg)}
+    100%{transform:rotate(360deg)}
+}
+
 /* ================= RESPONSIVE ================= */
 @media(max-width:1200px){
     .planner-container,.dashboard-row{width:100%}
@@ -274,6 +333,11 @@ td.afternoon-partial{background:#e6dbff;color:#4b2dbf;font-weight:600}
 </head>
 
 <body>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+</div>
 
 <header class="logo-box">
     <img src="logo_dataexpert.png" alt="Dataexpert" class="logo-img">
@@ -364,7 +428,7 @@ td.afternoon-partial{background:#e6dbff;color:#4b2dbf;font-weight:600}
 </div>
 
 <script>
-/* ================= JS ================= */
+/* ================= JS CON FIREBASE ================= */
 const users=["Damiano","Gianluca","Gregorio","Leonardo","Samuela","Simone"];
 const months=[
  {n:"Gennaio",s:"Gen",d:31,h:[1,6]},
@@ -385,8 +449,76 @@ let currentMonth=0;
 let viewMode="month";
 let activeCell=null;
 let chart=null;
+let dataCache = {}; // Cache locale per prestazioni migliori
 
 const parseHours=v=>!v?0:(v==="8"?8:parseInt(v));
+
+// ================= FIREBASE FUNCTIONS =================
+
+// Ottieni valore da Firebase (con cache)
+async function getFirebaseValue(key) {
+    if (dataCache[key] !== undefined) {
+        return dataCache[key];
+    }
+    
+    try {
+        const dbRef = window.firebaseDB.ref(`ferie2026/${key}`);
+        const snapshot = await window.firebaseDB.get(dbRef);
+        const value = snapshot.exists() ? snapshot.val() : "";
+        dataCache[key] = value;
+        return value;
+    } catch (error) {
+        console.error("Errore lettura Firebase:", error);
+        return "";
+    }
+}
+
+// Salva valore su Firebase
+async function setFirebaseValue(key, value) {
+    try {
+        const dbRef = window.firebaseDB.ref(`ferie2026/${key}`);
+        if (value) {
+            await window.firebaseDB.set(dbRef, value);
+            dataCache[key] = value;
+        } else {
+            await window.firebaseDB.remove(dbRef);
+            delete dataCache[key];
+        }
+    } catch (error) {
+        console.error("Errore scrittura Firebase:", error);
+    }
+}
+
+// Listener per sincronizzazione real-time
+function setupRealtimeListener() {
+    const dbRef = window.firebaseDB.ref('ferie2026');
+    window.firebaseDB.onValue(dbRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Aggiorna la cache locale
+            dataCache = data || {};
+            // Ri-renderizza solo se non stiamo già modificando
+            if (!activeCell) {
+                render();
+            }
+        }
+    });
+}
+
+// Carica tutti i dati iniziali
+async function loadAllData() {
+    try {
+        const dbRef = window.firebaseDB.ref('ferie2026');
+        const snapshot = await window.firebaseDB.get(dbRef);
+        if (snapshot.exists()) {
+            dataCache = snapshot.val();
+        }
+    } catch (error) {
+        console.error("Errore caricamento dati:", error);
+    }
+}
+
+// ================= FUNZIONI RENDER =================
 
 function setView(v,btn){
     viewMode=v;
@@ -452,7 +584,7 @@ function renderPlanner(){
             for(let d=1;d<=m.d;d++){
                 const wd=new Date(2026,mi,d).getDay();
                 const key=`${u}-${mi}-${d}`;
-                const v=localStorage.getItem(key)||"";
+                const v=dataCache[key]||"";
                 if(wd===0||wd===6||m.h.includes(d)){
                     html+=`<td class="holiday-col"></td>`;
                 }else{
@@ -478,7 +610,8 @@ function renderDashboard(){
         let ore=0;
         months.forEach((m,mi)=>{
             for(let d=1;d<=m.d;d++){
-                ore+=parseHours(localStorage.getItem(`${u}-${mi}-${d}`));
+                const key = `${u}-${mi}-${d}`;
+                ore+=parseHours(dataCache[key]);
             }
         });
         tb.innerHTML+=`<tr>
@@ -501,7 +634,8 @@ function renderChart(){
                 data:months.map((m,mi)=>{
                     let s=0;
                     for(let d=1;d<=m.d;d++){
-                        s+=parseHours(localStorage.getItem(`${u}-${mi}-${d}`));
+                        const key = `${u}-${mi}-${d}`;
+                        s+=parseHours(dataCache[key]);
                     }
                     return s;
                 }),
@@ -511,10 +645,13 @@ function renderChart(){
         },
         options:{
             responsive:true,
+            maintainAspectRatio:false,
             scales:{y:{beginAtZero:true}}
         }
     });
 }
+
+// ================= MODAL FUNCTIONS =================
 
 function openModal(td,key,day,month){
     activeCell={td,key};
@@ -522,27 +659,37 @@ function openModal(td,key,day,month){
         `${day} ${months[month].n} 2026`;
     document.getElementById("modal").style.display="flex";
 }
+
 function closeModal(){
     document.getElementById("modal").style.display="none";
     activeCell=null;
 }
-function applyValue(v){
+
+async function applyValue(v){
     if(!activeCell)return;
+    
     activeCell.td.textContent=v;
-    if(v) localStorage.setItem(activeCell.key,v);
-    else localStorage.removeItem(activeCell.key);
+    
+    // Salva su Firebase
+    await setFirebaseValue(activeCell.key, v);
+    
     closeModal();
     render();
 }
+
+// ================= NAVIGATION =================
 
 function nextMonth(){
     currentMonth=(currentMonth+1)%12;
     render();
 }
+
 function prevMonth(){
     currentMonth=(currentMonth+11)%12;
     render();
 }
+
+// ================= EXPORT TO EXCEL =================
 
 function exportToExcel(){
     const wb=XLSX.utils.book_new();
@@ -551,7 +698,8 @@ function exportToExcel(){
         users.forEach(u=>{
             const row=[u];
             for(let d=1;d<=m.d;d++){
-                row.push(localStorage.getItem(`${u}-${mi}-${d}`)||"");
+                const key = `${u}-${mi}-${d}`;
+                row.push(dataCache[key]||"");
             }
             aoa.push(row);
         });
@@ -564,7 +712,26 @@ function exportToExcel(){
     XLSX.writeFile(wb,"Planner_Ferie_2026.xlsx");
 }
 
-render();
+// ================= INIT APP =================
+
+window.initApp = async function() {
+    // Carica tutti i dati da Firebase
+    await loadAllData();
+    
+    // Setup listener real-time
+    setupRealtimeListener();
+    
+    // Render iniziale
+    render();
+    
+    // Nascondi loading overlay
+    document.getElementById('loadingOverlay').style.display = 'none';
+};
+
+// Se Firebase è già pronto, inizializza subito
+if (window.firebaseDB) {
+    window.initApp();
+}
 </script>
 
 <!--
