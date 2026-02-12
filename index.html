@@ -153,7 +153,7 @@ h1{
     margin-bottom:20px;
 }
 .nav-btn{
-    padding:12px 24px;
+    padding:12px 16px;
     border-radius:999px;
     border:1px solid var(--border-color);
     background:var(--bg-secondary);
@@ -162,6 +162,12 @@ h1{
     transition:all 0.2s ease;
     font-weight:600;
     font-size:15px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+.nav-btn svg{
+    display:block;
 }
 .nav-btn:hover{
     background:var(--accent-blue);
@@ -169,6 +175,9 @@ h1{
     border-color:var(--accent-blue);
     transform:translateY(-1px);
     box-shadow:0 4px 8px rgba(0,0,0,.1);
+}
+.nav-btn:hover svg{
+    stroke:#FDFCF0;
 }
 .month-label{
     font-weight:700;
@@ -321,8 +330,8 @@ h1{
 }
 
 .chart-box canvas{
-    height:350px!important;
-    max-height:350px;
+    height:320px!important;
+    max-height:320px;
 }
 
 /* ================= TOTALI TABLE ================= */
@@ -398,7 +407,19 @@ h1{
 #plannersContainer{
     display:flex;
     flex-direction:column;
-    gap:28px;
+    gap:22px;
+}
+
+.planner-month-title{
+    font-size:20px;
+    font-weight:700;
+    color:var(--title-blue);
+    margin-bottom:12px;
+    padding:10px 0;
+    text-align:center;
+    background:var(--bg-secondary);
+    border-radius:8px 8px 0 0;
+    border-bottom:2px solid var(--accent-blue);
 }
 
 .planner-box{
@@ -447,7 +468,7 @@ th.member-name,td.member-name{
     cursor:not-allowed;
 }
 [data-theme="dark"] .holiday-col{
-    background:#78350f;
+    background:#174E54;
 }
 td.editable{cursor:pointer}
 td.editable:hover{background:var(--hover-bg)}
@@ -633,9 +654,17 @@ td.afternoon-partial{background:#e6dbff;color:#4b2dbf;font-weight:600}
 <h1>Planner Annuale 2026</h1>
 
 <div class="calendar-header">
-    <button class="nav-btn" onclick="prevMonth()">←</button>
+    <button class="nav-btn" onclick="prevMonth()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+    </button>
     <div class="month-label" id="monthLabel"></div>
-    <button class="nav-btn" onclick="nextMonth()">→</button>
+    <button class="nav-btn" onclick="nextMonth()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+    </button>
 </div>
 
 <div class="view-mode-bar">
@@ -757,7 +786,7 @@ const months=[
  {n:"Dicembre",s:"Dic",d:31,h:[8,25,26]}
 ];
 
-let currentMonth=0;
+let currentMonth = new Date().getMonth(); // Mese corrente dinamico (0=Gennaio, 1=Febbraio, etc.)
 let viewMode="month";
 let activeCell=null;
 let chart=null;
@@ -959,7 +988,7 @@ function renderChart(){
     };
     
     chart = new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: months.map(m => m.s),
             datasets: filteredUsers.map(u => ({
@@ -972,34 +1001,43 @@ function renderChart(){
                     }
                     return days;
                 }),
-                backgroundColor: userColors[u].bg,
+                backgroundColor: userColors[u].bg.replace('0.75', '0.3'),
                 borderColor: userColors[u].border,
                 borderWidth: 3,
-                borderRadius: 8,
-                barPercentage: 0.75,
-                categoryPercentage: 0.85,
-                // Ombra sulle barre
-                shadowOffsetX: 0,
-                shadowOffsetY: 2,
-                shadowBlur: 4,
-                shadowColor: 'rgba(0, 0, 0, 0.1)'
+                pointBackgroundColor: userColors[u].point,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                pointHoverBorderWidth: 3,
+                fill: true,
+                tension: 0.4
             }))
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { 
-                mode: 'index', 
-                intersect: false,
-                axis: 'x'
-            },
-            animation: {
-                duration: 750,
-                easing: 'easeInOutQuart'
+                mode: 'point',
+                intersect: true
             },
             plugins: {
                 legend: {
-                    display: false
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 16,
+                        font: {
+                            size: 13,
+                            family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto',
+                            weight: '500'
+                        },
+                        color: colors.textColor,
+                        boxWidth: 10,
+                        boxHeight: 10
+                    }
                 },
                 tooltip: {
                     enabled: true,
@@ -1008,34 +1046,24 @@ function renderChart(){
                     bodyColor: colors.tooltipBody,
                     borderColor: colors.tooltipBorder,
                     borderWidth: 2,
-                    padding: 16,
+                    padding: 14,
                     titleFont: { 
-                        size: 15, 
+                        size: 14, 
                         weight: 'bold',
                         family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto'
                     },
                     bodyFont: { 
-                        size: 14,
+                        size: 13,
                         family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto'
                     },
-                    bodySpacing: 6,
+                    bodySpacing: 5,
                     cornerRadius: 8,
                     displayColors: true,
-                    boxWidth: 12,
-                    boxHeight: 12,
-                    boxPadding: 6,
                     callbacks: {
-                        title: (tooltipItems) => {
-                            return tooltipItems[0].label;
-                        },
                         label: (context) => {
                             const days = context.parsed.y.toFixed(1);
                             const hours = (context.parsed.y * 8).toFixed(0);
                             return ` ${context.dataset.label}: ${days} giorni (${hours}h)`;
-                        },
-                        afterBody: (tooltipItems) => {
-                            const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
-                            return `\nTotale: ${total.toFixed(1)} giorni`;
                         }
                     }
                 }
@@ -1082,10 +1110,6 @@ function renderChart(){
                         padding: 10
                     }
                 }
-            },
-            // Hover effect sulle barre
-            onHover: (event, chartElement) => {
-                event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
             }
         }
     });
@@ -1142,9 +1166,16 @@ function renderPlanner(){
 
     idxs.forEach(mi=>{
         const m=months[mi];
-        let html=`<div class="planner-box"><table class="planner"><thead>
+        
+        // Aggiungo titolo mese sopra ogni planner
+        let html='';
+        if(viewMode !== 'month'){
+            html+=`<div class="planner-month-title">${m.n} 2026</div>`;
+        }
+        
+        html+=`<div class="planner-box"><table class="planner"><thead>
         <tr class="weekday-row">
-            <th class="member-name" rowspan="2">Membro</th>`;
+            <th class="member-name" rowspan="2">Utenti</th>`;
 
         for(let d=1;d<=m.d;d++){
             html+=`<th>${["dom","lun","mar","mer","gio","ven","sab"][new Date(2026,mi,d).getDay()]}</th>`;
@@ -1240,7 +1271,7 @@ function prevMonth(){
 function exportToExcel(){
     const wb=XLSX.utils.book_new();
     months.forEach((m,mi)=>{
-        const aoa=[["Membro",...Array.from({length:m.d},(_,i)=>i+1)]];
+        const aoa=[["Utente",...Array.from({length:m.d},(_,i)=>i+1)]];
         users.forEach(u=>{
             const row=[u];
             for(let d=1;d<=m.d;d++){
